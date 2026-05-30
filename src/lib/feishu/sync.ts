@@ -1,10 +1,11 @@
+import { join } from 'node:path';
 import type { Database as DatabaseConnection } from 'better-sqlite3';
 import { markMissingFeishuNotesRemoved, upsertFeishuNote } from '@/lib/db/notes';
 import { finishSyncRun, startSyncRun } from '@/lib/db/sync-runs';
 import { renderMarkdown } from '@/lib/markdown/render';
 import { summarizeMarkdown } from '@/lib/markdown/summarize';
 import { blocksToMarkdown } from './blocks-to-markdown';
-import type { FeishuClient, FeishuSyncStats, FeishuSyncStatus } from './types';
+import type { FeishuBlock, FeishuClient, FeishuSyncStats, FeishuSyncStatus } from './types';
 
 export type SyncFeishuPagesInput = {
   db: DatabaseConnection;
@@ -39,7 +40,14 @@ export async function syncFeishuPages(input: SyncFeishuPagesInput): Promise<Sync
     for (const page of pages) {
       try {
         const blocks = await input.client.getDocumentBlocks(page.documentId);
-        const markdown = blocksToMarkdown(blocks);
+        const preparedBlocks = await prepareImageBlocks({
+          blocks,
+          client: input.client,
+          uploadDir: input.uploadDir,
+          pageTitle: page.title,
+          warnings: messages,
+        });
+        const markdown = blocksToMarkdown(preparedBlocks);
         const html = await renderMarkdown(markdown);
         const summary = summarizeMarkdown(markdown) || page.title;
         const result = upsertFeishuNote(input.db, {
@@ -103,4 +111,60 @@ export async function syncFeishuPages(input: SyncFeishuPagesInput): Promise<Sync
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+async function prepareImageBlocks(input: {
+  blocks: FeishuBlock[];
+  client: FeishuClient;
+  uploadDir?: string;
+  pageTitle: string;
+  warnings: string[];
+}): Promise<FeishuBlock[]> {
+  const uploadDir = input.uploadDir ?? './public/uploads/feishu';
+  const prepared: FeishuBlock[] = [];
+
+  for (const block of input.blocks) {
+    if (block.type !== 'image' || !block.token) {
+      prepared.push(block);
+      continue;
+    }
+
+    const safeToken = safeAssetName(block.token);
+    const targetPath = join(uploadDir, safeToken);
+
+    try {
+      const downloaded = await input.client.downloadAsset(block.token, targetPath);
+
+      if (downloaded) {
+        prepared.push({
+          ...block,
+          path: `/uploads/feishu/${safeToken}`,
+        });
+        continue;
+      }
+
+      const warning = imageWarning(input.pageTitle, block, '下载未返回文件');
+      input.warnings.push(warning);
+      prepared.push({ type: 'text', text: `图片未同步：${block.alt || block.token}` });
+    } catch (error) {
+      const warning = imageWarning(input.pageTitle, block, errorMessage(error));
+      input.warnings.push(warning);
+      prepared.push({ type: 'text', text: `图片未同步：${block.alt || block.token}` });
+    }
+  }
+
+  return prepared;
+}
+
+function imageWarning(pageTitle: string, block: Extract<FeishuBlock, { type: 'image' }>, reason: string): string {
+  return `图片未同步：${pageTitle} / ${block.alt || '未命名图片'} / ${block.token ?? '无 token'} / ${reason}`;
+}
+
+function safeAssetName(token: string): string {
+  const safe = token
+    .trim()
+    .replace(/[^A-Za-z0-9._-]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+
+  return safe || 'feishu-image';
 }

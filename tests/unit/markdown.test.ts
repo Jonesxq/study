@@ -13,7 +13,7 @@ describe('markdown rendering', () => {
     expect(html).not.toContain('<script>');
   });
 
-  it('removes unsafe links, images, and raw html attributes', async () => {
+  it('removes unsafe links, unsafe images, and raw html attributes', async () => {
     const html = await renderMarkdown(
       [
         '[x](javascript:alert(1))',
@@ -25,8 +25,17 @@ describe('markdown rendering', () => {
 
     expect(html).not.toContain('javascript:');
     expect(html).not.toContain('onerror');
-    expect(html).not.toContain('<img');
     expect(html).not.toContain('href="javascript:');
+  });
+
+  it('allows sanitized Markdown images with safe attributes only', async () => {
+    const html = await renderMarkdown(
+      '![配图](/uploads/feishu/image-token "标题")\n\n![危险](javascript:alert(1))\n\n<img src="/uploads/feishu/raw" onerror="alert(1)" alt="raw">'
+    );
+
+    expect(html).toContain('<img src="/uploads/feishu/image-token" alt="配图" title="标题">');
+    expect(html).not.toContain('javascript:');
+    expect(html).not.toContain('onerror');
   });
 
   it('renders sanitized html through the public Markdown view', () => {

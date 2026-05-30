@@ -79,8 +79,9 @@ export class HttpFeishuClient implements FeishuClient {
     const { spaceId, parentNodeToken } = parseSource(this.source);
     const pages: FeishuWikiPage[] = [];
     const visitedParents = new Set<string>();
+    const seenDocumentIds = new Set<string>();
 
-    await this.collectWikiPages(spaceId, parentNodeToken, pages, visitedParents);
+    await this.collectWikiPages(spaceId, parentNodeToken, pages, visitedParents, seenDocumentIds);
 
     return pages;
   }
@@ -88,6 +89,7 @@ export class HttpFeishuClient implements FeishuClient {
   async getDocumentBlocks(documentId: string): Promise<FeishuBlock[]> {
     const blocks: FeishuBlock[] = [];
     let pageToken: string | undefined;
+    const seenPageTokens = new Set<string>();
 
     do {
       const params = new URLSearchParams({ page_size: '500' });
@@ -103,7 +105,7 @@ export class HttpFeishuClient implements FeishuClient {
         if (block) blocks.push(block);
       }
 
-      pageToken = data.has_more ? data.page_token : undefined;
+      pageToken = nextPageToken(data.page_token, data.has_more, seenPageTokens);
     } while (pageToken);
 
     return blocks;
@@ -174,12 +176,14 @@ export class HttpFeishuClient implements FeishuClient {
     parentNodeToken: string | undefined,
     pages: FeishuWikiPage[],
     visitedParents: Set<string>,
+    seenDocumentIds: Set<string>,
   ): Promise<void> {
     const visitKey = parentNodeToken ?? '__root__';
     if (visitedParents.has(visitKey)) return;
     visitedParents.add(visitKey);
 
     let pageToken: string | undefined;
+    const seenPageTokens = new Set<string>();
 
     do {
       const params = new URLSearchParams({ page_size: '50' });
@@ -188,10 +192,12 @@ export class HttpFeishuClient implements FeishuClient {
 
       const data = await this.request<WikiNodeListData>(
         `/open-apis/wiki/v2/spaces/${encodeURIComponent(spaceId)}/nodes?${params.toString()}`,
+        { retryRateLimit: true },
       );
 
       for (const node of data.items ?? []) {
-        if (node.obj_token && isDocumentNode(node.obj_type)) {
+        if (node.obj_token && isDocumentNode(node.obj_type) && !seenDocumentIds.has(node.obj_token)) {
+          seenDocumentIds.add(node.obj_token);
           pages.push({
             sourceId: node.obj_token,
             documentId: node.obj_token,
@@ -202,11 +208,11 @@ export class HttpFeishuClient implements FeishuClient {
         }
 
         if (node.has_child && node.node_token) {
-          await this.collectWikiPages(spaceId, node.node_token, pages, visitedParents);
+          await this.collectWikiPages(spaceId, node.node_token, pages, visitedParents, seenDocumentIds);
         }
       }
 
-      pageToken = data.has_more ? data.page_token : undefined;
+      pageToken = nextPageToken(data.page_token, data.has_more, seenPageTokens);
     } while (pageToken);
   }
 
@@ -242,8 +248,9 @@ export class HttpFeishuClient implements FeishuClient {
 
 function parseSource(source: string): { spaceId: string; parentNodeToken?: string } {
   const [spaceId, parentNodeToken] = source.split(':');
+  const parts = source.split(':');
 
-  if (!spaceId?.trim()) {
+  if (parts.length > 2 || !spaceId?.trim()) {
     throw new Error('FEISHU_SYNC_SOURCE must be "space_id" or "space_id:parent_node_token"');
   }
 
@@ -254,7 +261,26 @@ function parseSource(source: string): { spaceId: string; parentNodeToken?: strin
 }
 
 function isDocumentNode(objType?: string): boolean {
-  return objType === 'docx' || objType === 'doc';
+  return objType === 'docx';
+}
+
+function nextPageToken(
+  token: string | undefined,
+  hasMore: boolean | undefined,
+  seenPageTokens: Set<string>,
+): string | undefined {
+  if (!hasMore) return undefined;
+
+  if (!token) {
+    throw new Error('Feishu response has_more=true but page_token is empty');
+  }
+
+  if (seenPageTokens.has(token)) {
+    throw new Error(`Repeated Feishu page_token: ${token}`);
+  }
+
+  seenPageTokens.add(token);
+  return token;
 }
 
 function toIsoDate(value?: string | number): string | undefined {

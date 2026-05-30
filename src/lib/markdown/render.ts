@@ -7,7 +7,15 @@ import { unified } from 'unified';
 
 const sanitizeSchema = {
   ...defaultSchema,
-  tagNames: defaultSchema.tagNames?.filter((tagName) => tagName !== 'img')
+  tagNames: [...new Set([...(defaultSchema.tagNames ?? []), 'img'])],
+  attributes: {
+    ...defaultSchema.attributes,
+    img: ['src', 'alt', 'title'],
+  },
+  protocols: {
+    ...defaultSchema.protocols,
+    src: ['http', 'https'],
+  },
 };
 
 export async function renderMarkdown(markdown: string) {

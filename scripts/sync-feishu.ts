@@ -17,7 +17,7 @@ async function main() {
 
   console.log(JSON.stringify(result, null, 2));
 
-  if (result.status === 'failed') {
+  if (result.status !== 'success') {
     process.exitCode = 1;
   }
 }
