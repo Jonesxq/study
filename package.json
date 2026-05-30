@@ -1,0 +1,51 @@
+{
+  "name": "weixianmanbu-notes",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "e2e": "playwright test",
+    "db:migrate": "tsx scripts/migrate.ts",
+    "seed:admin": "tsx scripts/seed-admin.ts",
+    "sync:feishu": "tsx scripts/sync-feishu.ts",
+    "backup": "tsx scripts/backup.ts",
+    "verify": "npm run typecheck && npm run test && npm run build"
+  },
+  "dependencies": {
+    "bcryptjs": "latest",
+    "better-sqlite3": "latest",
+    "clsx": "latest",
+    "next": "^15.5.18",
+    "react": "latest",
+    "react-dom": "latest",
+    "rehype-sanitize": "latest",
+    "rehype-stringify": "latest",
+    "remark-gfm": "latest",
+    "remark-parse": "latest",
+    "remark-rehype": "latest",
+    "unified": "latest",
+    "zod": "latest"
+  },
+  "devDependencies": {
+    "@playwright/test": "latest",
+    "@tailwindcss/typography": "latest",
+    "@testing-library/jest-dom": "latest",
+    "@testing-library/react": "latest",
+    "@types/better-sqlite3": "latest",
+    "@types/node": "latest",
+    "@types/react": "latest",
+    "@types/react-dom": "latest",
+    "autoprefixer": "latest",
+    "jsdom": "latest",
+    "postcss": "latest",
+    "tailwindcss": "^3.4.17",
+    "tsx": "latest",
+    "typescript": "^5.9.3",
+    "vitest": "latest"
+  }
+}
