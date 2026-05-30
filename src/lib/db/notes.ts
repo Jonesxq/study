@@ -44,6 +44,23 @@ export type UpdateLocalNoteInput = {
   tags?: string[];
 };
 
+export type UpsertFeishuNoteInput = {
+  sourceId: string;
+  title: string;
+  summary: string;
+  contentMarkdown: string;
+  contentHtml: string;
+  parentId?: string;
+  sourceUpdatedAt?: string;
+  syncedAt?: string;
+  tags?: string[];
+};
+
+export type UpsertFeishuNoteResult = {
+  note: NoteRecord;
+  created: boolean;
+};
+
 type NoteRow = {
   id: string;
   source_type: SourceType;
@@ -206,6 +223,72 @@ export function updateLocalNote(
   return update();
 }
 
+export function upsertFeishuNote(db: DatabaseConnection, input: UpsertFeishuNoteInput): UpsertFeishuNoteResult {
+  const upsert = db.transaction(() => {
+    const existing = db
+      .prepare("select * from notes where source_type = 'feishu' and source_id = ?")
+      .get(input.sourceId) as NoteRow | undefined;
+    const now = new Date().toISOString();
+    const syncedAt = input.syncedAt ?? now;
+
+    if (existing) {
+      db.prepare(
+        `
+          update notes
+          set title = ?,
+              summary = ?,
+              content_markdown = ?,
+              content_html = ?,
+              status = 'public',
+              parent_id = ?,
+              source_updated_at = ?,
+              synced_at = ?,
+              updated_at = ?
+          where id = ?
+            and source_type = 'feishu'
+        `,
+      ).run(
+        input.title,
+        input.summary,
+        input.contentMarkdown,
+        input.contentHtml,
+        input.parentId ?? null,
+        input.sourceUpdatedAt ?? null,
+        syncedAt,
+        now,
+        existing.id,
+      );
+
+      replaceNoteTags(db, existing.id, input.tags ?? []);
+
+      const note = getNoteById(db, existing.id);
+      if (!note) {
+        throw new Error(`Updated Feishu note could not be loaded: ${existing.id}`);
+      }
+
+      return { note, created: false };
+    }
+
+    const note = createNote(db, {
+      sourceType: 'feishu',
+      sourceId: input.sourceId,
+      title: input.title,
+      summary: input.summary,
+      contentMarkdown: input.contentMarkdown,
+      contentHtml: input.contentHtml,
+      status: 'public',
+      parentId: input.parentId,
+      sourceUpdatedAt: input.sourceUpdatedAt,
+      syncedAt,
+      tags: input.tags,
+    });
+
+    return { note, created: true };
+  });
+
+  return upsert();
+}
+
 export function getNoteTags(db: DatabaseConnection, noteId: string): string[] {
   const rows = db
     .prepare(
@@ -344,6 +427,17 @@ export function markMissingFeishuNotesRemoved(db: DatabaseConnection, activeSour
     .run(now, ...sourceIds);
 
   return result.changes;
+}
+
+function replaceNoteTags(db: DatabaseConnection, noteId: string, tags: string[]): void {
+  db.prepare('delete from note_tags where note_id = ?').run(noteId);
+
+  const tagIds = upsertTags(db, tags);
+  const linkTag = db.prepare('insert or ignore into note_tags (note_id, tag_id) values (?, ?)');
+
+  for (const tagId of tagIds) {
+    linkTag.run(noteId, tagId);
+  }
 }
 
 function upsertTags(db: DatabaseConnection, names: string[]): string[] {
