@@ -223,6 +223,11 @@ export function updateLocalNote(
   return update();
 }
 
+export function deleteLocalNote(db: DatabaseConnection, id: string): boolean {
+  const result = db.prepare("delete from notes where id = ? and source_type = 'local'").run(id);
+  return result.changes > 0;
+}
+
 export function upsertFeishuNote(db: DatabaseConnection, input: UpsertFeishuNoteInput): UpsertFeishuNoteResult {
   const upsert = db.transaction(() => {
     const existing = db

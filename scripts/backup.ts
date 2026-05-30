@@ -17,6 +17,17 @@ export type CreateBackupResult = {
   warnings: string[];
 };
 
+export type BackupEnvironment = Record<string, string | undefined> &
+  Partial<Record<'DATABASE_PATH' | 'UPLOAD_DIR' | 'BACKUP_DIR', string>>;
+
+export function getDefaultBackupOptions(env: BackupEnvironment): CreateBackupInput {
+  return {
+    databasePath: env.DATABASE_PATH ?? './data/notes.sqlite',
+    uploadDir: env.UPLOAD_DIR ?? './public/uploads/feishu',
+    backupDir: env.BACKUP_DIR ?? './backups',
+  };
+}
+
 export async function createBackup(input: CreateBackupInput): Promise<CreateBackupResult> {
   const now = input.now ?? new Date();
   const timestamp = now.toISOString().replace(/[:.]/g, '-');
@@ -122,11 +133,7 @@ async function directoryExists(path: string) {
 
 async function main() {
   try {
-    const result = await createBackup({
-      databasePath: process.env.DATABASE_PATH ?? './data/notes.sqlite',
-      uploadDir: process.env.UPLOAD_DIR ?? './uploads',
-      backupDir: process.env.BACKUP_DIR ?? './backups',
-    });
+    const result = await createBackup(getDefaultBackupOptions(process.env));
 
     for (const warning of result.warnings) {
       console.warn(warning);

@@ -3,7 +3,7 @@ import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { createBackup } from '../../scripts/backup';
+import { createBackup, getDefaultBackupOptions } from '../../scripts/backup';
 
 let currentDir: string | undefined;
 
@@ -20,6 +20,18 @@ afterEach(() => {
 });
 
 describe('createBackup', () => {
+  it('uses the Feishu public uploads directory as the default upload directory', () => {
+    const options = getDefaultBackupOptions({});
+
+    expect(options.uploadDir).toBe('./public/uploads/feishu');
+  });
+
+  it('keeps UPLOAD_DIR as an override for the default upload directory', () => {
+    const options = getDefaultBackupOptions({ UPLOAD_DIR: './custom/uploads' });
+
+    expect(options.uploadDir).toBe('./custom/uploads');
+  });
+
   it('copies the SQLite database into a timestamped backup directory', async () => {
     const root = await createTempDir();
     const databasePath = join(root, 'data', 'notes.sqlite');

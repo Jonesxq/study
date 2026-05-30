@@ -4,6 +4,7 @@ const requireAdminMock = vi.fn();
 const getDatabaseMock = vi.fn();
 const getSettingMock = vi.fn();
 const setSiteSettingsMock = vi.fn();
+const deleteLocalNoteMock = vi.fn();
 const syncFeishuPagesMock = vi.fn();
 const httpFeishuClientMock = vi.fn(function HttpFeishuClient(options: unknown) {
   return { options };
@@ -20,6 +21,10 @@ vi.mock('@/lib/db/client', () => ({
 vi.mock('@/lib/db/settings', () => ({
   getSetting: getSettingMock,
   setSiteSettings: setSiteSettingsMock,
+}));
+
+vi.mock('@/lib/db/notes', () => ({
+  deleteLocalNote: deleteLocalNoteMock,
 }));
 
 vi.mock('@/lib/feishu/client', () => ({
@@ -212,6 +217,56 @@ describe('/api/admin/sync route', () => {
     expect(syncFeishuPagesMock).toHaveBeenCalledTimes(1);
     expect(response.status).toBe(303);
     expect(response.headers.get('location')).toBe('https://example.test/admin/sync?status=success');
+  });
+});
+
+describe('/api/admin/notes/[id]/delete route', () => {
+  it('requires admin before deleting a local note', async () => {
+    requireAdminMock.mockRejectedValueOnce(new Error('not allowed'));
+    const { POST } = await import('@/app/api/admin/notes/[id]/delete/route');
+
+    await expect(
+      POST(new Request('https://example.test/api/admin/notes/local-id/delete', { method: 'POST' }), {
+        params: Promise.resolve({ id: 'local-id' }),
+      }),
+    ).rejects.toThrow('not allowed');
+
+    expect(requireAdminMock).toHaveBeenCalledTimes(1);
+    expect(getDatabaseMock).not.toHaveBeenCalled();
+    expect(deleteLocalNoteMock).not.toHaveBeenCalled();
+  });
+
+  it('deletes a local note and redirects back to admin notes', async () => {
+    requireAdminMock.mockResolvedValueOnce(undefined);
+    deleteLocalNoteMock.mockReturnValueOnce(true);
+    const { POST } = await import('@/app/api/admin/notes/[id]/delete/route');
+
+    const response = await POST(
+      new Request('https://example.test/api/admin/notes/local-id/delete', { method: 'POST' }),
+      {
+        params: Promise.resolve({ id: 'local-id' }),
+      },
+    );
+
+    expect(deleteLocalNoteMock).toHaveBeenCalledWith({ id: 'test-db' }, 'local-id');
+    expect(response.status).toBe(303);
+    expect(response.headers.get('location')).toBe('https://example.test/admin/notes?deleted=1');
+  });
+
+  it('returns a Chinese 404 when the note is missing or owned by Feishu sync', async () => {
+    requireAdminMock.mockResolvedValueOnce(undefined);
+    deleteLocalNoteMock.mockReturnValueOnce(false);
+    const { POST } = await import('@/app/api/admin/notes/[id]/delete/route');
+
+    const response = await POST(
+      new Request('https://example.test/api/admin/notes/feishu-id/delete', { method: 'POST' }),
+      {
+        params: Promise.resolve({ id: 'feishu-id' }),
+      },
+    );
+
+    expect(response.status).toBe(404);
+    expect(await response.text()).toBe('笔记不存在，或飞书同步笔记不能在网站后台删除。');
   });
 });
 

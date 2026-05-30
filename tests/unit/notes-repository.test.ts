@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { runMigrations } from '@/lib/db/migrate';
 import {
   createNote,
+  deleteLocalNote,
   findPublicNotes,
   getNoteById,
   getNoteTags,
@@ -198,5 +199,42 @@ describe('notes repository', () => {
 
     const adminNotes = listAdminNotes(db);
     expect(adminNotes.map((note) => note.id)).toEqual([local.id, feishu.id]);
+  });
+
+  it('deletes local notes and cascades their tag links', () => {
+    const db = createTestDatabase();
+
+    const local = createNote(db, {
+      sourceType: 'local',
+      title: '可以删除的本地笔记',
+      status: 'public',
+      tags: ['删除测试', 'Next.js'],
+    });
+
+    const deleted = deleteLocalNote(db, local.id);
+
+    expect(deleted).toBe(true);
+    expect(getNoteById(db, local.id)).toBeUndefined();
+    expect(getNoteTags(db, local.id)).toEqual([]);
+    expect(listAdminNotes(db).map((note) => note.id)).not.toContain(local.id);
+    expect(findPublicNotes(db).map((note) => note.id)).not.toContain(local.id);
+  });
+
+  it('does not delete Feishu notes through local delete', () => {
+    const db = createTestDatabase();
+
+    const feishu = createNote(db, {
+      sourceType: 'feishu',
+      sourceId: 'feishu-delete-denied',
+      title: '飞书同步笔记',
+      status: 'public',
+      tags: ['飞书'],
+    });
+
+    const deleted = deleteLocalNote(db, feishu.id);
+
+    expect(deleted).toBe(false);
+    expect(getNoteById(db, feishu.id)?.title).toBe('飞书同步笔记');
+    expect(getNoteTags(db, feishu.id)).toEqual(['飞书']);
   });
 });

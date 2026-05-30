@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { DeleteNoteButton } from './delete-note-button';
 import { getDatabase } from '@/lib/db/client';
 import { listAdminNotes } from '@/lib/db/notes';
 
@@ -52,6 +53,13 @@ export default function AdminNotesPage() {
                   <Link href={`/admin/notes/${note.id}/edit`} className="text-[var(--accent)] hover:underline">
                     编辑
                   </Link>
+                  {note.sourceType === 'local' ? (
+                    <form action={`/api/admin/notes/${note.id}/delete`} method="post" className="ml-3 inline">
+                      <DeleteNoteButton title={note.title} />
+                    </form>
+                  ) : (
+                    <span className="ml-3 text-[var(--muted)]">飞书同步</span>
+                  )}
                 </td>
               </tr>
             ))}
