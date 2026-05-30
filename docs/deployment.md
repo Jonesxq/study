@@ -36,3 +36,29 @@ curl https://weixianmanbu.shop/api/health
 ```bash
 docker compose exec app npm run sync:feishu
 ```
+
+## 服务器准备
+
+```bash
+sudo apt-get update
+sudo apt-get install -y ca-certificates curl gnupg
+sudo install -m 0755 -d /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+sudo chmod a+r /etc/apt/keyrings/docker.gpg
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+sudo apt-get update
+sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+sudo systemctl enable docker
+sudo systemctl start docker
+```
+
+## 发布检查
+
+- DNS A 记录已经指向 `115.29.175.216`。
+- 服务器 80 和 443 端口已开放。
+- `.env` 已填写强密码和飞书凭证。
+- `docker compose up -d --build` 成功。
+- `docker compose ps` 显示 `app` 和 `proxy` 都在运行。
+- `curl https://weixianmanbu.shop/api/health` 返回 `{"ok":true}`。
+- 后台 `/admin/login` 可以打开。
+- 首次手动飞书同步已成功或后台能看到中文失败原因。
