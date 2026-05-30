@@ -1,16 +1,37 @@
-import { cookies } from 'next/headers';
-import { redirect } from 'next/navigation';
+import { NextResponse } from 'next/server';
 import { deleteSession, SESSION_COOKIE } from '@/lib/auth/session';
 import { getDatabase } from '@/lib/db/client';
 
-export async function POST() {
-  const cookieStore = await cookies();
-  const token = cookieStore.get(SESSION_COOKIE)?.value;
+export async function POST(request: Request) {
+  const token = readCookie(request, SESSION_COOKIE);
 
   if (token) {
     deleteSession(getDatabase(), token);
   }
 
-  cookieStore.delete(SESSION_COOKIE);
-  redirect('/admin/login');
+  const response = NextResponse.redirect(new URL('/admin/login', request.url), { status: 303 });
+
+  response.cookies.set(SESSION_COOKIE, '', {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production',
+    maxAge: 0,
+    path: '/',
+  });
+
+  return response;
+}
+
+function readCookie(request: Request, name: string): string | undefined {
+  const cookies = request.headers.get('cookie')?.split(';') ?? [];
+
+  for (const cookie of cookies) {
+    const [rawName, ...rawValue] = cookie.trim().split('=');
+
+    if (rawName === name) {
+      return rawValue.join('=');
+    }
+  }
+
+  return undefined;
 }

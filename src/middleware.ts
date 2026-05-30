@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 
-const SESSION_COOKIE = 'notes_admin_session';
+const PREFILTER_SESSION_COOKIE = 'notes_admin_session';
 
 export function middleware(request: NextRequest) {
   const path = request.nextUrl.pathname;
@@ -9,7 +9,9 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  if (request.cookies.get(SESSION_COOKIE)?.value) {
+  // This is only a UX prefilter. It does not validate the session; server
+  // pages and API routes must call requireAdmin() for real authorization.
+  if (request.cookies.get(PREFILTER_SESSION_COOKIE)?.value) {
     return NextResponse.next();
   }
 

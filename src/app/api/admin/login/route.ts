@@ -1,5 +1,4 @@
-import { cookies } from 'next/headers';
-import { redirect } from 'next/navigation';
+import { NextResponse } from 'next/server';
 import { createSession, createSessionToken, SESSION_COOKIE } from '@/lib/auth/session';
 import { verifyPassword } from '@/lib/auth/password';
 import { getDatabase } from '@/lib/db/client';
@@ -18,14 +17,14 @@ export async function POST(request: Request) {
     | undefined;
 
   if (!user || !(await verifyPassword(password, user.password_hash))) {
-    redirect('/admin/login?error=1');
+    return NextResponse.redirect(new URL('/admin/login?error=1', request.url), { status: 303 });
   }
 
   const token = createSessionToken();
   const expires = createSession(db, token);
-  const cookieStore = await cookies();
+  const response = NextResponse.redirect(new URL('/admin', request.url), { status: 303 });
 
-  cookieStore.set(SESSION_COOKIE, token, {
+  response.cookies.set(SESSION_COOKIE, token, {
     httpOnly: true,
     sameSite: 'lax',
     secure: process.env.NODE_ENV === 'production',
@@ -33,5 +32,5 @@ export async function POST(request: Request) {
     path: '/',
   });
 
-  redirect('/admin');
+  return response;
 }
