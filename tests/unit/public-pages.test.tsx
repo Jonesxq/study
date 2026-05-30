@@ -88,4 +88,26 @@ describe('public reading pages', () => {
     expect(findTagBySlug(db, encodeURIComponent('技术'))?.name).toBe('技术');
     expect(getAboutNote(db)?.title).toBe('关于');
   });
+
+  it('does not expose draft-only tags through public tag helpers', () => {
+    const db = new Database(':memory:');
+    runMigrations(db);
+
+    createNote(db, {
+      sourceType: 'local',
+      title: '私密草稿',
+      status: 'draft',
+      tags: ['私密'],
+    });
+    createNote(db, {
+      sourceType: 'local',
+      title: '公开技术笔记',
+      status: 'public',
+      tags: ['技术'],
+    });
+
+    expect(findTagBySlug(db, encodeURIComponent('私密'))).toBeUndefined();
+    expect(findTagBySlug(db, encodeURIComponent('技术'))?.name).toBe('技术');
+    expect(listTags(db).map((tag) => tag.name)).toEqual(['技术']);
+  });
 });

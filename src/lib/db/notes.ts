@@ -189,8 +189,8 @@ export function findTagBySlug(db: DatabaseConnection, slug: string): TagRecord |
       `
         select tags.id, tags.name, tags.slug, count(notes.id) as note_count
         from tags
-        left join note_tags on note_tags.tag_id = tags.id
-        left join notes on notes.id = note_tags.note_id and notes.status = 'public'
+        join note_tags on note_tags.tag_id = tags.id
+        join notes on notes.id = note_tags.note_id and notes.status = 'public'
         where tags.slug = ?
         group by tags.id, tags.name, tags.slug
       `,
