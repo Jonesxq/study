@@ -54,6 +54,16 @@ type NoteRow = {
 
 type TagRow = {
   id: string;
+  name?: string;
+  slug?: string;
+  note_count?: number;
+};
+
+export type TagRecord = {
+  id: string;
+  name: string;
+  slug: string;
+  note_count: number;
 };
 
 export function createNote(db: DatabaseConnection, input: CreateNoteInput): NoteRecord {
@@ -132,6 +142,79 @@ export function createNote(db: DatabaseConnection, input: CreateNoteInput): Note
 
 export function getNoteById(db: DatabaseConnection, id: string): NoteRecord | undefined {
   const row = db.prepare('select * from notes where id = ?').get(id) as NoteRow | undefined;
+  return row ? mapNoteRow(row) : undefined;
+}
+
+export function getPublicNoteById(db: DatabaseConnection, id: string): NoteRecord | undefined {
+  const row = db.prepare("select * from notes where id = ? and status = 'public'").get(id) as NoteRow | undefined;
+  return row ? mapNoteRow(row) : undefined;
+}
+
+export function getNoteTags(db: DatabaseConnection, noteId: string): string[] {
+  const rows = db
+    .prepare(
+      `
+        select tags.name
+        from tags
+        join note_tags on note_tags.tag_id = tags.id
+        where note_tags.note_id = ?
+        order by note_tags.rowid asc
+      `,
+    )
+    .all(noteId) as Array<{ name: string }>;
+
+  return rows.map((row) => row.name);
+}
+
+export function listTags(db: DatabaseConnection): TagRecord[] {
+  const rows = db
+    .prepare(
+      `
+        select tags.id, tags.name, tags.slug, count(notes.id) as note_count
+        from tags
+        join note_tags on note_tags.tag_id = tags.id
+        join notes on notes.id = note_tags.note_id and notes.status = 'public'
+        group by tags.id, tags.name, tags.slug
+        order by tags.name asc
+      `,
+    )
+    .all() as TagRecord[];
+
+  return rows;
+}
+
+export function findTagBySlug(db: DatabaseConnection, slug: string): TagRecord | undefined {
+  const row = db
+    .prepare(
+      `
+        select tags.id, tags.name, tags.slug, count(notes.id) as note_count
+        from tags
+        left join note_tags on note_tags.tag_id = tags.id
+        left join notes on notes.id = note_tags.note_id and notes.status = 'public'
+        where tags.slug = ?
+        group by tags.id, tags.name, tags.slug
+      `,
+    )
+    .get(slug) as TagRecord | undefined;
+
+  return row;
+}
+
+export function getAboutNote(db: DatabaseConnection): NoteRecord | undefined {
+  const row = db
+    .prepare(
+      `
+        select *
+        from notes
+        where status = 'public'
+          and source_type = 'local'
+          and (slug = 'about' or id = 'about' or title = '关于')
+        order by updated_at desc
+        limit 1
+      `,
+    )
+    .get() as NoteRow | undefined;
+
   return row ? mapNoteRow(row) : undefined;
 }
 
