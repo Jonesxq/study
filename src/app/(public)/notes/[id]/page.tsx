@@ -5,6 +5,8 @@ import { TagPill } from '@/components/public/TagPill';
 import { getDatabase } from '@/lib/db/client';
 import { getNoteTags, getPublicNoteById } from '@/lib/db/notes';
 
+export const dynamic = 'force-dynamic';
+
 type NoteDetailPageProps = {
   params: Promise<{ id: string }>;
 };

@@ -110,4 +110,20 @@ describe('public reading pages', () => {
     expect(findTagBySlug(db, encodeURIComponent('技术'))?.name).toBe('技术');
     expect(listTags(db).map((tag) => tag.name)).toEqual(['技术']);
   });
+
+  it('marks SQLite-backed public pages as dynamic', async () => {
+    const pages = await Promise.all([
+      import('@/app/(public)/page'),
+      import('@/app/(public)/notes/page'),
+      import('@/app/(public)/notes/[id]/page'),
+      import('@/app/(public)/tags/page'),
+      import('@/app/(public)/tags/[slug]/page'),
+      import('@/app/(public)/search/page'),
+      import('@/app/(public)/about/page'),
+    ]);
+
+    for (const page of pages) {
+      expect(page.dynamic).toBe('force-dynamic');
+    }
+  });
 });

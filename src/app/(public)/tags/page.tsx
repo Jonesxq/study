@@ -2,6 +2,8 @@ import { SiteHeader } from '@/components/public/SiteHeader';
 import { getDatabase } from '@/lib/db/client';
 import { listTags } from '@/lib/db/notes';
 
+export const dynamic = 'force-dynamic';
+
 export default function TagsPage() {
   const tags = listTags(getDatabase());
 

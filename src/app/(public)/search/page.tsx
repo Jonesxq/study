@@ -3,6 +3,8 @@ import { SiteHeader } from '@/components/public/SiteHeader';
 import { getDatabase } from '@/lib/db/client';
 import { findPublicNotes, getNoteTags } from '@/lib/db/notes';
 
+export const dynamic = 'force-dynamic';
+
 type SearchPageProps = {
   searchParams: Promise<{ q?: string | string[] }>;
 };

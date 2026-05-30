@@ -3,6 +3,8 @@ import { SiteHeader } from '@/components/public/SiteHeader';
 import { getDatabase } from '@/lib/db/client';
 import { getAboutNote } from '@/lib/db/notes';
 
+export const dynamic = 'force-dynamic';
+
 export default function AboutPage() {
   const note = getAboutNote(getDatabase());
 

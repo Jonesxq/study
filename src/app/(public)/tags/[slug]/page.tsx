@@ -4,6 +4,8 @@ import { SiteHeader } from '@/components/public/SiteHeader';
 import { getDatabase } from '@/lib/db/client';
 import { findPublicNotes, findTagBySlug, getNoteTags } from '@/lib/db/notes';
 
+export const dynamic = 'force-dynamic';
+
 type TagDetailPageProps = {
   params: Promise<{ slug: string }>;
 };
