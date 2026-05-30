@@ -20,6 +20,6 @@ COPY --from=builder /app/public ./public
 COPY --from=builder /app/src ./src
 COPY --from=builder /app/scripts ./scripts
 COPY --from=builder /app/next.config.mjs ./next.config.mjs
-RUN mkdir -p /app/data /app/uploads /app/backups
+RUN mkdir -p /app/data /app/public/uploads/feishu /app/backups
 EXPOSE 3000
 CMD ["npm", "run", "start"]

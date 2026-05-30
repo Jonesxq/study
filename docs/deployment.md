@@ -10,7 +10,9 @@
 cp .env.example .env
 ```
 
-6. 编辑 `.env`，填写管理员密码和飞书应用凭证。
+6. 编辑 `.env`，填写管理员密码和飞书应用凭证。必须修改 `ADMIN_PASSWORD` 为强密码。
+   `FEISHU_SYNC_SOURCE` 可填写 `space_id`，或填写 `space_id:parent_node_token` 指定父节点。
+   上传图片会持久化在宿主 `./uploads`，容器内路径为 `/app/public/uploads/feishu`。
 7. 启动服务：
 
 ```bash
