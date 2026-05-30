@@ -1,5 +1,6 @@
-import { cp, mkdir, stat, copyFile } from 'node:fs/promises';
-import { basename, join } from 'node:path';
+import { randomUUID } from 'node:crypto';
+import { cp, mkdir, stat, copyFile, rename, rm } from 'node:fs/promises';
+import { basename, isAbsolute, join, relative, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 export type CreateBackupInput = {
@@ -22,17 +23,34 @@ export async function createBackup(input: CreateBackupInput): Promise<CreateBack
   const backupPath = join(input.backupDir, timestamp);
   const uploadsBackupPath = join(backupPath, 'uploads');
   const databaseBackupPath = join(backupPath, basename(input.databasePath));
+  const stagingPath = join(input.backupDir, `.tmp-${timestamp}-${randomUUID()}`);
   const warnings: string[] = [];
 
+  assertBackupIsOutsideUploads(input.backupDir, input.uploadDir);
   await assertFileExists(input.databasePath, `Database file not found: ${input.databasePath}`);
-  await mkdir(backupPath, { recursive: true });
-  await copyFile(input.databasePath, databaseBackupPath);
+  await assertPathMissing(backupPath, `Backup already exists: ${backupPath}`);
+  await mkdir(input.backupDir, { recursive: true });
+  await mkdir(stagingPath);
 
-  if (await directoryExists(input.uploadDir)) {
-    await cp(input.uploadDir, uploadsBackupPath, { recursive: true });
-  } else {
-    await mkdir(uploadsBackupPath, { recursive: true });
-    warnings.push('Uploads directory not found; created an empty uploads backup.');
+  try {
+    await copyFile(input.databasePath, join(stagingPath, basename(input.databasePath)));
+
+    if (await directoryExists(input.uploadDir)) {
+      await cp(input.uploadDir, join(stagingPath, 'uploads'), { recursive: true });
+    } else {
+      await mkdir(join(stagingPath, 'uploads'), { recursive: true });
+      warnings.push('Uploads directory not found; created an empty uploads backup.');
+    }
+
+    await rename(stagingPath, backupPath);
+  } catch (error) {
+    await rm(stagingPath, { recursive: true, force: true });
+
+    if ((error as NodeJS.ErrnoException).code === 'EEXIST') {
+      throw new Error(`Backup already exists: ${backupPath}`);
+    }
+
+    throw error;
   }
 
   return {
@@ -41,6 +59,38 @@ export async function createBackup(input: CreateBackupInput): Promise<CreateBack
     uploadsBackupPath,
     warnings,
   };
+}
+
+function assertBackupIsOutsideUploads(backupDir: string, uploadDir: string) {
+  if (isSameOrChildPath(backupDir, uploadDir)) {
+    throw new Error(`Backup directory cannot be inside uploads directory: ${backupDir}`);
+  }
+}
+
+async function assertPathMissing(path: string, message: string) {
+  try {
+    await stat(path);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      return;
+    }
+
+    throw error;
+  }
+
+  throw new Error(message);
+}
+
+function isSameOrChildPath(child: string, parent: string) {
+  const resolvedChild = normalizeForPlatform(resolve(child));
+  const resolvedParent = normalizeForPlatform(resolve(parent));
+  const childRelativeToParent = relative(resolvedParent, resolvedChild);
+
+  return childRelativeToParent === '' || (!childRelativeToParent.startsWith('..') && !isAbsolute(childRelativeToParent));
+}
+
+function normalizeForPlatform(path: string) {
+  return process.platform === 'win32' ? path.toLowerCase() : path;
 }
 
 async function assertFileExists(path: string, message: string) {

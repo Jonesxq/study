@@ -112,20 +112,22 @@ export class HttpFeishuClient implements FeishuClient {
   }
 
   async downloadAsset(token: string, targetPath: string): Promise<string | undefined> {
+    let asset: ArrayBuffer;
+
     try {
-      const asset = await this.request<ArrayBuffer>(
+      asset = await this.request<ArrayBuffer>(
         `/open-apis/drive/v1/medias/${encodeURIComponent(token)}/download`,
         { raw: true },
       );
-
-      await mkdir(dirname(targetPath), { recursive: true });
-      const body = Buffer.from(asset);
-      await pipeline(Readable.from(body), createWriteStream(targetPath));
-
-      return targetPath;
     } catch {
       return undefined;
     }
+
+    await mkdir(dirname(targetPath), { recursive: true });
+    const body = Buffer.from(asset);
+    await pipeline(Readable.from(body), createWriteStream(targetPath));
+
+    return targetPath;
   }
 
   async request<T>(

@@ -85,4 +85,47 @@ describe('createBackup', () => {
       }),
     ).rejects.toThrow('Database file not found');
   });
+
+  it('does not overwrite or merge an existing timestamped backup', async () => {
+    const root = await createTempDir();
+    const databasePath = join(root, 'notes.sqlite');
+    const uploadDir = join(root, 'uploads');
+    const backupDir = join(root, 'backups');
+    const now = new Date('2026-05-31T01:02:03.004Z');
+    writeFileSync(databasePath, 'original-db');
+    mkdirSync(uploadDir, { recursive: true });
+    writeFileSync(join(uploadDir, 'original.txt'), 'original-upload');
+
+    const first = await createBackup({ databasePath, uploadDir, backupDir, now });
+
+    writeFileSync(databasePath, 'new-db');
+    writeFileSync(join(uploadDir, 'new.txt'), 'new-upload');
+
+    await expect(createBackup({ databasePath, uploadDir, backupDir, now })).rejects.toThrow(
+      `Backup already exists: ${first.backupPath}`,
+    );
+    expect(readFileSync(join(first.backupPath, 'notes.sqlite'), 'utf8')).toBe('original-db');
+    expect(readFileSync(join(first.backupPath, 'uploads', 'original.txt'), 'utf8')).toBe('original-upload');
+    expect(existsSync(join(first.backupPath, 'uploads', 'new.txt'))).toBe(false);
+  });
+
+  it('rejects backup directories inside uploads before writing partial backup files', async () => {
+    const root = await createTempDir();
+    const databasePath = join(root, 'notes.sqlite');
+    const uploadDir = join(root, 'uploads');
+    const backupDir = join(uploadDir, 'backups');
+    writeFileSync(databasePath, 'sqlite-bytes');
+    mkdirSync(uploadDir, { recursive: true });
+    writeFileSync(join(uploadDir, 'image.txt'), 'image-bytes');
+
+    await expect(
+      createBackup({
+        databasePath,
+        uploadDir,
+        backupDir,
+        now: new Date('2026-05-31T01:02:03.004Z'),
+      }),
+    ).rejects.toThrow('Backup directory cannot be inside uploads directory');
+    expect(existsSync(backupDir)).toBe(false);
+  });
 });

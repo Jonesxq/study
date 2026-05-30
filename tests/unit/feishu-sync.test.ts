@@ -525,6 +525,22 @@ describe('HttpFeishuClient', () => {
       rmSync(root, { recursive: true, force: true });
     }
   });
+
+  it('throws local file write errors instead of returning undefined', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'feishu-download-'));
+    try {
+      const client = new HttpFeishuClient({
+        appId: 'app',
+        appSecret: 'secret',
+        source: 'space',
+        fetchImpl: queuedFetch([tokenResponse('token'), new Response('image-bytes', { status: 200 })]),
+      });
+
+      await expect(client.downloadAsset('image-token', root)).rejects.toThrow();
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
 });
 
 function tokenResponse(token: string) {
