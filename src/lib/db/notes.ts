@@ -35,6 +35,15 @@ export type CreateNoteInput = {
   tags?: string[];
 };
 
+export type UpdateLocalNoteInput = {
+  title: string;
+  summary: string;
+  contentMarkdown: string;
+  contentHtml: string;
+  status: Exclude<NoteStatus, 'removed'>;
+  tags?: string[];
+};
+
 type NoteRow = {
   id: string;
   source_type: SourceType;
@@ -148,6 +157,53 @@ export function getNoteById(db: DatabaseConnection, id: string): NoteRecord | un
 export function getPublicNoteById(db: DatabaseConnection, id: string): NoteRecord | undefined {
   const row = db.prepare("select * from notes where id = ? and status = 'public'").get(id) as NoteRow | undefined;
   return row ? mapNoteRow(row) : undefined;
+}
+
+export function listAdminNotes(db: DatabaseConnection): NoteRecord[] {
+  const rows = db.prepare('select * from notes order by updated_at desc, rowid desc').all() as NoteRow[];
+  return rows.map(mapNoteRow);
+}
+
+export function updateLocalNote(
+  db: DatabaseConnection,
+  id: string,
+  input: UpdateLocalNoteInput,
+): NoteRecord | undefined {
+  const update = db.transaction(() => {
+    const existing = getNoteById(db, id);
+
+    if (!existing || existing.sourceType !== 'local') {
+      return undefined;
+    }
+
+    const now = new Date().toISOString();
+
+    db.prepare(
+      `
+        update notes
+        set title = ?,
+            summary = ?,
+            content_markdown = ?,
+            content_html = ?,
+            status = ?,
+            updated_at = ?
+        where id = ? and source_type = 'local'
+      `,
+    ).run(input.title, input.summary, input.contentMarkdown, input.contentHtml, input.status, now, id);
+
+    db.prepare('delete from note_tags where note_id = ?').run(id);
+
+    const tagIds = upsertTags(db, input.tags ?? []);
+    const linkTag = db.prepare('insert or ignore into note_tags (note_id, tag_id) values (?, ?)');
+
+    for (const tagId of tagIds) {
+      linkTag.run(id, tagId);
+    }
+
+    return getNoteById(db, id);
+  });
+
+  return update();
 }
 
 export function getNoteTags(db: DatabaseConnection, noteId: string): string[] {

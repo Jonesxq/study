@@ -4,7 +4,15 @@ import { join } from 'node:path';
 import Database from 'better-sqlite3';
 import { afterEach, describe, expect, it } from 'vitest';
 import { runMigrations } from '@/lib/db/migrate';
-import { createNote, findPublicNotes, getNoteById, markMissingFeishuNotesRemoved } from '@/lib/db/notes';
+import {
+  createNote,
+  findPublicNotes,
+  getNoteById,
+  getNoteTags,
+  listAdminNotes,
+  markMissingFeishuNotesRemoved,
+  updateLocalNote,
+} from '@/lib/db/notes';
 
 let currentDb: Database.Database | undefined;
 let currentDir: string | undefined;
@@ -144,5 +152,51 @@ describe('notes repository', () => {
     expect(getNoteById(db, firstFeishu.id)?.status).toBe('removed');
     expect(getNoteById(db, secondFeishu.id)?.status).toBe('removed');
     expect(getNoteById(db, local.id)?.status).toBe('public');
+  });
+
+  it('lists all admin notes by updated time and updates only local notes', () => {
+    const db = createTestDatabase();
+
+    const feishu = createNote(db, {
+      sourceType: 'feishu',
+      sourceId: 'feishu-source',
+      title: '飞书笔记',
+      status: 'public',
+    });
+    const local = createNote(db, {
+      sourceType: 'local',
+      title: '旧标题',
+      summary: '旧摘要',
+      contentMarkdown: '旧正文',
+      contentHtml: '<p>旧正文</p>',
+      status: 'draft',
+      tags: ['旧标签'],
+    });
+
+    const updated = updateLocalNote(db, local.id, {
+      title: '新标题',
+      summary: '新摘要',
+      contentMarkdown: '新正文',
+      contentHtml: '<p>新正文</p>',
+      status: 'public',
+      tags: ['新标签', 'Next.js'],
+    });
+    const feishuUpdate = updateLocalNote(db, feishu.id, {
+      title: '不应更新',
+      summary: '',
+      contentMarkdown: '不应更新',
+      contentHtml: '<p>不应更新</p>',
+      status: 'draft',
+      tags: ['不应更新'],
+    });
+
+    expect(feishuUpdate).toBeUndefined();
+    expect(updated?.title).toBe('新标题');
+    expect(updated?.status).toBe('public');
+    expect(getNoteTags(db, local.id)).toEqual(['新标签', 'Next.js']);
+    expect(getNoteById(db, feishu.id)?.title).toBe('飞书笔记');
+
+    const adminNotes = listAdminNotes(db);
+    expect(adminNotes.map((note) => note.id)).toEqual([local.id, feishu.id]);
   });
 });
