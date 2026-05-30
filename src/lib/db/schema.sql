@@ -51,6 +51,14 @@ create table if not exists sessions (
   created_at text not null
 );
 
+create table if not exists admin_users (
+  id text primary key,
+  username text not null unique,
+  password_hash text not null,
+  created_at text not null,
+  updated_at text not null
+);
+
 create table if not exists sync_runs (
   id text primary key,
   status text not null check (status in ('running', 'success', 'failed', 'partial')),

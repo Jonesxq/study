@@ -29,6 +29,7 @@ describe('database migrations', () => {
     expect(tables).toContain('note_tags');
     expect(tables).toContain('settings');
     expect(tables).toContain('sessions');
+    expect(tables).toContain('admin_users');
     expect(tables).toContain('sync_runs');
     expect(tables).toContain('schema_migrations');
 
