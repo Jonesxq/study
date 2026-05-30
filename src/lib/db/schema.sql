@@ -1,6 +1,11 @@
 pragma journal_mode = WAL;
 pragma foreign_keys = ON;
 
+create table if not exists schema_migrations (
+  version integer primary key,
+  applied_at text not null
+);
+
 create table if not exists notes (
   id text primary key,
   source_type text not null check (source_type in ('feishu', 'local')),

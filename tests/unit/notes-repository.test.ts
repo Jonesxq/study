@@ -92,4 +92,57 @@ describe('notes repository', () => {
     expect(getNoteById(db, stale.id)?.status).toBe('removed');
     expect(getNoteById(db, local.id)?.status).toBe('public');
   });
+
+  it('finds public notes when query is empty or only a tag is provided', () => {
+    const db = createTestDatabase();
+
+    const first = createNote(db, {
+      sourceType: 'local',
+      title: '阅读札记',
+      status: 'public',
+      tags: ['阅读'],
+    });
+    const second = createNote(db, {
+      sourceType: 'local',
+      title: '技术观察',
+      status: 'public',
+      tags: ['技术'],
+    });
+
+    const allPublic = findPublicNotes(db, { query: '   ' });
+    expect(allPublic.map((note) => note.id).sort()).toEqual([first.id, second.id].sort());
+
+    const tagOnly = findPublicNotes(db, { tagSlug: encodeURIComponent('技术') });
+    expect(tagOnly).toHaveLength(1);
+    expect(tagOnly[0]?.id).toBe(second.id);
+  });
+
+  it('marks all Feishu notes removed for an empty latest sync scope', () => {
+    const db = createTestDatabase();
+
+    const firstFeishu = createNote(db, {
+      sourceType: 'feishu',
+      sourceId: 'first-feishu',
+      title: '第一条飞书笔记',
+      status: 'public',
+    });
+    const secondFeishu = createNote(db, {
+      sourceType: 'feishu',
+      sourceId: 'second-feishu',
+      title: '第二条飞书笔记',
+      status: 'draft',
+    });
+    const local = createNote(db, {
+      sourceType: 'local',
+      title: '本地笔记',
+      status: 'public',
+    });
+
+    const removedCount = markMissingFeishuNotesRemoved(db, []);
+
+    expect(removedCount).toBe(2);
+    expect(getNoteById(db, firstFeishu.id)?.status).toBe('removed');
+    expect(getNoteById(db, secondFeishu.id)?.status).toBe('removed');
+    expect(getNoteById(db, local.id)?.status).toBe('public');
+  });
 });
