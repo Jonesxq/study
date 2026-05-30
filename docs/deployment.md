@@ -2,7 +2,7 @@
 
 1. 在域名 DNS 控制台中添加 A 记录：`weixianmanbu.shop -> 115.29.175.216`。
 2. 在服务器开放 80 和 443 端口。
-3. 安装 Docker 和 Docker Compose。
+3. 安装 Docker 和 Docker Compose。需要 Docker Compose v2.24 或更新版本，以支持可选 `.env` 文件校验。
 4. 上传代码到服务器。
 5. 复制环境变量文件：
 

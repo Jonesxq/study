@@ -26,14 +26,21 @@ describe('deployment assets', () => {
   });
 
   it('stores Feishu uploads in the public upload directory', () => {
+    const dockerfile = readRepoFile('Dockerfile');
+    const builderPublicDirIndex = dockerfile.indexOf('RUN mkdir -p public/uploads/feishu');
+    const runnerPublicCopyIndex = dockerfile.indexOf('COPY --from=builder /app/public ./public');
+
     expect(readRepoFile('.env.example')).toContain('UPLOAD_DIR=/app/public/uploads/feishu');
     expect(readRepoFile('docker-compose.yml')).toContain('./uploads:/app/public/uploads/feishu');
-    expect(readRepoFile('Dockerfile')).toContain('/app/public/uploads/feishu');
+    expect(dockerfile).toContain('/app/public/uploads/feishu');
+    expect(builderPublicDirIndex).toBeGreaterThan(-1);
+    expect(builderPublicDirIndex).toBeLessThan(runnerPublicCopyIndex);
   });
 
-  it('documents production secrets and Feishu sync source format', () => {
+  it('documents production secrets, Feishu sync source format, and compose version', () => {
     const docs = readRepoFile('docs/deployment.md');
 
+    expect(docs).toContain('Docker Compose v2.24');
     expect(docs).toContain('必须修改 `ADMIN_PASSWORD`');
     expect(docs).toContain('`space_id`');
     expect(docs).toContain('`space_id:parent_node_token`');

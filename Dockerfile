@@ -7,6 +7,7 @@ RUN npm ci
 FROM deps AS builder
 WORKDIR /app
 COPY . .
+RUN mkdir -p public/uploads/feishu
 RUN npm run build
 
 FROM node:22-bookworm-slim AS runner
