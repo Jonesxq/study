@@ -283,8 +283,14 @@ export function findPublicNotes(
   const query = filters.query?.trim();
 
   if (query) {
-    where.push('(notes.title like ? or notes.summary like ? or notes.content_markdown like ?)');
-    const likeQuery = `%${query}%`;
+    where.push(`
+      (
+        notes.title like ? escape '~'
+        or notes.summary like ? escape '~'
+        or notes.content_markdown like ? escape '~'
+      )
+    `);
+    const likeQuery = `%${escapeLikePattern(query)}%`;
     params.push(likeQuery, likeQuery, likeQuery);
   }
 
@@ -360,6 +366,10 @@ function upsertTags(db: DatabaseConnection, names: string[]): string[] {
 
     return row.id;
   });
+}
+
+function escapeLikePattern(value: string): string {
+  return value.replace(/[~%_]/g, (char) => `~${char}`);
 }
 
 function mapNoteRow(row: NoteRow): NoteRecord {
