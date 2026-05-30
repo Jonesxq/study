@@ -1,4 +1,5 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import Database from 'better-sqlite3';
@@ -233,14 +234,43 @@ describe('Feishu sync', () => {
     const result = await syncFeishuPages({ db, client, uploadDir: join(currentDir!, 'public', 'uploads', 'feishu') });
 
     const note = getNoteById(db, result.noteIds[0]!);
+    const safeName = safeTestAssetName('image/token 1');
     expect(client.downloadCalls).toEqual([
       {
         token: 'image/token 1',
-        targetPath: join(currentDir!, 'public', 'uploads', 'feishu', 'image-token-1'),
+        targetPath: join(currentDir!, 'public', 'uploads', 'feishu', safeName),
       },
     ]);
-    expect(note?.contentMarkdown).toContain('![图一](/uploads/feishu/image-token-1)');
-    expect(note?.contentHtml).toContain('<img src="/uploads/feishu/image-token-1" alt="图一">');
+    expect(note?.contentMarkdown).toContain(`![图一](/uploads/feishu/${safeName})`);
+    expect(note?.contentHtml).toContain(`<img src="/uploads/feishu/${safeName}" alt="图一">`);
+  });
+
+  it('uses hashed image asset names that cannot escape the upload directory or collide by punctuation', async () => {
+    const db = createTestDatabase();
+    const client = new FakeFeishuClient(
+      [{ sourceId: 'image-doc', documentId: 'image-doc', title: '图片笔记' }],
+      new Map([
+        [
+          'image-doc',
+          [
+            { type: 'image', token: '..', alt: 'dotdot' },
+            { type: 'image', token: 'a/b', alt: 'slash' },
+            { type: 'image', token: 'a:b', alt: 'colon' },
+          ],
+        ],
+      ]),
+      async (_token, targetPath) => targetPath,
+    );
+    const uploadDir = join(currentDir!, 'public', 'uploads', 'feishu');
+
+    await syncFeishuPages({ db, client, uploadDir });
+
+    const targetPaths = client.downloadCalls.map((call) => call.targetPath);
+    expect(targetPaths).toContain(join(uploadDir, safeTestAssetName('..')));
+    expect(targetPaths).toContain(join(uploadDir, safeTestAssetName('a/b')));
+    expect(targetPaths).toContain(join(uploadDir, safeTestAssetName('a:b')));
+    expect(new Set(targetPaths).size).toBe(3);
+    expect(targetPaths.every((targetPath) => targetPath.startsWith(uploadDir))).toBe(true);
   });
 
   it('records a Chinese warning and avoids missing image links when an image download fails', async () => {
@@ -459,6 +489,42 @@ describe('HttpFeishuClient', () => {
 
     await expect(client.listWikiPages()).rejects.toThrow('FEISHU_SYNC_SOURCE');
   });
+
+  it('writes downloaded asset bytes and returns the target path', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'feishu-download-'));
+    try {
+      const targetPath = join(root, 'uploads', 'feishu', safeTestAssetName('image-token'));
+      const client = new HttpFeishuClient({
+        appId: 'app',
+        appSecret: 'secret',
+        source: 'space',
+        fetchImpl: queuedFetch([tokenResponse('token'), new Response('image-bytes', { status: 200 })]),
+      });
+
+      await expect(client.downloadAsset('image-token', targetPath)).resolves.toBe(targetPath);
+      expect(readFileSync(targetPath, 'utf8')).toBe('image-bytes');
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('returns undefined instead of throwing when an asset download fails', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'feishu-download-'));
+    try {
+      const targetPath = join(root, 'uploads', 'feishu', safeTestAssetName('missing-token'));
+      const client = new HttpFeishuClient({
+        appId: 'app',
+        appSecret: 'secret',
+        source: 'space',
+        fetchImpl: queuedFetch([tokenResponse('token'), new Response('missing', { status: 404 })]),
+      });
+
+      await expect(client.downloadAsset('missing-token', targetPath)).resolves.toBeUndefined();
+      expect(existsSync(targetPath)).toBe(false);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
 });
 
 function tokenResponse(token: string) {
@@ -491,4 +557,8 @@ function queuedFetch(responses: Response[]) {
 
   fetchImpl.calls = calls;
   return fetchImpl;
+}
+
+function safeTestAssetName(token: string) {
+  return createHash('sha256').update(token).digest('hex').slice(0, 32);
 }

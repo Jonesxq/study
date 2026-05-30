@@ -1,4 +1,5 @@
-import { join } from 'node:path';
+import { createHash } from 'node:crypto';
+import { extname, isAbsolute, join, relative, resolve } from 'node:path';
 import type { Database as DatabaseConnection } from 'better-sqlite3';
 import { markMissingFeishuNotesRemoved, upsertFeishuNote } from '@/lib/db/notes';
 import { finishSyncRun, startSyncRun } from '@/lib/db/sync-runs';
@@ -130,7 +131,7 @@ async function prepareImageBlocks(input: {
     }
 
     const safeToken = safeAssetName(block.token);
-    const targetPath = join(uploadDir, safeToken);
+    const targetPath = safeUploadPath(uploadDir, safeToken);
 
     try {
       const downloaded = await input.client.downloadAsset(block.token, targetPath);
@@ -161,10 +162,30 @@ function imageWarning(pageTitle: string, block: Extract<FeishuBlock, { type: 'im
 }
 
 function safeAssetName(token: string): string {
-  const safe = token
-    .trim()
-    .replace(/[^A-Za-z0-9._-]+/g, '-')
-    .replace(/^-+|-+$/g, '');
+  const hash = createHash('sha256').update(token).digest('hex').slice(0, 32);
+  const extension = safeExtension(token);
 
-  return safe || 'feishu-image';
+  return `${hash}${extension}`;
+}
+
+function safeExtension(token: string): string {
+  const extension = extname(token.trim()).toLowerCase();
+
+  if (/^\.[a-z0-9]{1,8}$/.test(extension)) {
+    return extension;
+  }
+
+  return '';
+}
+
+function safeUploadPath(uploadDir: string, fileName: string): string {
+  const root = resolve(uploadDir);
+  const target = resolve(root, fileName);
+  const relativeTarget = relative(root, target);
+
+  if (relativeTarget.startsWith('..') || isAbsolute(relativeTarget)) {
+    throw new Error(`Asset path escapes upload directory: ${fileName}`);
+  }
+
+  return target;
 }

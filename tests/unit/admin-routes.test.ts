@@ -214,3 +214,19 @@ describe('/api/admin/sync route', () => {
     expect(response.headers.get('location')).toBe('https://example.test/admin/sync?status=success');
   });
 });
+
+describe('/api/health route', () => {
+  it('checks the database connection and returns ok JSON', async () => {
+    const getMock = vi.fn();
+    const prepareMock = vi.fn(() => ({ get: getMock }));
+    getDatabaseMock.mockReturnValueOnce({ prepare: prepareMock });
+    const { GET } = await import('@/app/api/health/route');
+
+    const response = await GET();
+
+    expect(prepareMock).toHaveBeenCalledWith('select 1');
+    expect(getMock).toHaveBeenCalledTimes(1);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ ok: true });
+  });
+});
