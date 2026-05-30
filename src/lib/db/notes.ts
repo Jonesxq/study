@@ -1,0 +1,243 @@
+import { randomUUID } from 'node:crypto';
+import type { Database as DatabaseConnection } from 'better-sqlite3';
+
+export type NoteStatus = 'public' | 'draft' | 'archived' | 'removed';
+export type SourceType = 'feishu' | 'local';
+
+export type NoteRecord = {
+  id: string;
+  sourceType: SourceType;
+  sourceId?: string;
+  title: string;
+  slug: string;
+  summary: string;
+  contentMarkdown: string;
+  contentHtml: string;
+  status: NoteStatus;
+  parentId?: string;
+  sourceUpdatedAt?: string;
+  syncedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CreateNoteInput = {
+  sourceType: SourceType;
+  sourceId?: string;
+  title: string;
+  summary?: string;
+  contentMarkdown?: string;
+  contentHtml?: string;
+  status: NoteStatus;
+  parentId?: string;
+  sourceUpdatedAt?: string;
+  syncedAt?: string;
+  tags?: string[];
+};
+
+type NoteRow = {
+  id: string;
+  source_type: SourceType;
+  source_id: string | null;
+  title: string;
+  slug: string;
+  summary: string;
+  content_markdown: string;
+  content_html: string;
+  status: NoteStatus;
+  parent_id: string | null;
+  source_updated_at: string | null;
+  synced_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+type TagRow = {
+  id: string;
+};
+
+export function createNote(db: DatabaseConnection, input: CreateNoteInput): NoteRecord {
+  const create = db.transaction(() => {
+    const now = new Date().toISOString();
+    const id = randomUUID();
+
+    db.prepare(`
+      insert into notes (
+        id,
+        source_type,
+        source_id,
+        title,
+        slug,
+        summary,
+        content_markdown,
+        content_html,
+        status,
+        parent_id,
+        source_updated_at,
+        synced_at,
+        created_at,
+        updated_at
+      )
+      values (
+        @id,
+        @sourceType,
+        @sourceId,
+        @title,
+        @slug,
+        @summary,
+        @contentMarkdown,
+        @contentHtml,
+        @status,
+        @parentId,
+        @sourceUpdatedAt,
+        @syncedAt,
+        @createdAt,
+        @updatedAt
+      )
+    `).run({
+      id,
+      sourceType: input.sourceType,
+      sourceId: input.sourceId ?? null,
+      title: input.title,
+      slug: id,
+      summary: input.summary ?? '',
+      contentMarkdown: input.contentMarkdown ?? '',
+      contentHtml: input.contentHtml ?? '',
+      status: input.status,
+      parentId: input.parentId ?? null,
+      sourceUpdatedAt: input.sourceUpdatedAt ?? null,
+      syncedAt: input.syncedAt ?? null,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    const tagIds = upsertTags(db, input.tags ?? []);
+    const linkTag = db.prepare('insert or ignore into note_tags (note_id, tag_id) values (?, ?)');
+
+    for (const tagId of tagIds) {
+      linkTag.run(id, tagId);
+    }
+
+    return getNoteById(db, id);
+  });
+
+  const note = create();
+
+  if (!note) {
+    throw new Error('Created note could not be loaded');
+  }
+
+  return note;
+}
+
+export function getNoteById(db: DatabaseConnection, id: string): NoteRecord | undefined {
+  const row = db.prepare('select * from notes where id = ?').get(id) as NoteRow | undefined;
+  return row ? mapNoteRow(row) : undefined;
+}
+
+export function findPublicNotes(
+  db: DatabaseConnection,
+  filters: { query?: string; tagSlug?: string } = {},
+): NoteRecord[] {
+  const where = ['notes.status = ?'];
+  const params: unknown[] = ['public'];
+  const query = filters.query?.trim();
+
+  if (query) {
+    where.push('(notes.title like ? or notes.summary like ? or notes.content_markdown like ?)');
+    const likeQuery = `%${query}%`;
+    params.push(likeQuery, likeQuery, likeQuery);
+  }
+
+  if (filters.tagSlug) {
+    where.push(`
+      exists (
+        select 1
+        from note_tags
+        join tags on tags.id = note_tags.tag_id
+        where note_tags.note_id = notes.id and tags.slug = ?
+      )
+    `);
+    params.push(filters.tagSlug);
+  }
+
+  const rows = db
+    .prepare(`select notes.* from notes where ${where.join(' and ')} order by notes.updated_at desc`)
+    .all(...params) as NoteRow[];
+
+  return rows.map(mapNoteRow);
+}
+
+export function markMissingFeishuNotesRemoved(db: DatabaseConnection, activeSourceIds: string[]): number {
+  const now = new Date().toISOString();
+  const sourceIds = [...new Set(activeSourceIds)];
+
+  if (sourceIds.length === 0) {
+    const result = db
+      .prepare(`
+        update notes
+        set status = 'removed', updated_at = ?
+        where source_type = 'feishu'
+          and source_id is not null
+          and status != 'removed'
+      `)
+      .run(now);
+
+    return result.changes;
+  }
+
+  const placeholders = sourceIds.map(() => '?').join(', ');
+  const result = db
+    .prepare(`
+      update notes
+      set status = 'removed', updated_at = ?
+      where source_type = 'feishu'
+        and source_id is not null
+        and source_id not in (${placeholders})
+        and status != 'removed'
+    `)
+    .run(now, ...sourceIds);
+
+  return result.changes;
+}
+
+function upsertTags(db: DatabaseConnection, names: string[]): string[] {
+  const normalizedNames = [...new Set(names.map((name) => name.trim()).filter(Boolean))];
+  const insertTag = db.prepare(`
+    insert into tags (id, name, slug)
+    values (?, ?, ?)
+    on conflict(slug) do nothing
+  `);
+  const findTag = db.prepare('select id from tags where slug = ?');
+
+  return normalizedNames.map((name) => {
+    const slug = encodeURIComponent(name.toLowerCase());
+    insertTag.run(randomUUID(), name, slug);
+    const row = findTag.get(slug) as TagRow | undefined;
+
+    if (!row) {
+      throw new Error(`Tag could not be loaded: ${name}`);
+    }
+
+    return row.id;
+  });
+}
+
+function mapNoteRow(row: NoteRow): NoteRecord {
+  return {
+    id: row.id,
+    sourceType: row.source_type,
+    sourceId: row.source_id ?? undefined,
+    title: row.title,
+    slug: row.slug,
+    summary: row.summary,
+    contentMarkdown: row.content_markdown,
+    contentHtml: row.content_html,
+    status: row.status,
+    parentId: row.parent_id ?? undefined,
+    sourceUpdatedAt: row.source_updated_at ?? undefined,
+    syncedAt: row.synced_at ?? undefined,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
