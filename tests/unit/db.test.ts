@@ -28,6 +28,11 @@ describe('database migrations', () => {
     const siteName = db.prepare("select value from settings where key = 'site_name'").get() as { value: string };
     expect(siteName.value).toBe('未闲漫步');
 
+    const siteDescription = db.prepare("select value from settings where key = 'site_description'").get() as {
+      value: string;
+    };
+    expect(siteDescription.value).toBe('一个记录阅读、技术、生活观察和长期问题的中文笔记库。');
+
     db.close();
     rmSync(dir, { recursive: true, force: true });
   });

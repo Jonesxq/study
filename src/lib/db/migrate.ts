@@ -4,7 +4,7 @@ import type { Database as DatabaseConnection } from 'better-sqlite3';
 
 const seedSettings = [
   ['site_name', '未闲漫步'],
-  ['site_description', '散步时写下的笔记'],
+  ['site_description', '一个记录阅读、技术、生活观察和长期问题的中文笔记库。'],
   ['feishu_sync_source', ''],
 ] as const;
 
