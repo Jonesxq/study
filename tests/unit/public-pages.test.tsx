@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import Database from 'better-sqlite3';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { NoteCard } from '@/components/public/NoteCard';
 import { SiteHeader } from '@/components/public/SiteHeader';
 import { runMigrations } from '@/lib/db/migrate';
@@ -12,6 +12,11 @@ import {
   getPublicNoteById,
   listTags,
 } from '@/lib/db/notes';
+
+afterEach(() => {
+  vi.doUnmock('@/lib/db/client');
+  vi.resetModules();
+});
 
 describe('public reading pages', () => {
   it('renders Chinese note card content', () => {
@@ -109,6 +114,33 @@ describe('public reading pages', () => {
     expect(findTagBySlug(db, encodeURIComponent('私密'))).toBeUndefined();
     expect(findTagBySlug(db, encodeURIComponent('技术'))?.name).toBe('技术');
     expect(listTags(db).map((tag) => tag.name)).toEqual(['技术']);
+  });
+
+  it('renders a Chinese missing state for unknown or draft-only tag pages', async () => {
+    const db = new Database(':memory:');
+    runMigrations(db);
+
+    createNote(db, {
+      sourceType: 'local',
+      title: '私密草稿',
+      status: 'draft',
+      tags: ['私密'],
+    });
+
+    vi.doMock('@/lib/db/client', () => ({
+      getDatabase: () => db,
+    }));
+
+    const { default: TagDetailPage } = await import('@/app/(public)/tags/[slug]/page');
+    const page = await TagDetailPage({
+      params: Promise.resolve({ slug: encodeURIComponent('私密') }),
+    });
+
+    render(page);
+
+    expect(screen.getByText('没有找到这个标签。')).toBeTruthy();
+    expect(screen.getByText('未闲漫步')).toBeTruthy();
+    expect(screen.queryByText('404')).toBeNull();
   });
 
   it('marks SQLite-backed public pages as dynamic', async () => {

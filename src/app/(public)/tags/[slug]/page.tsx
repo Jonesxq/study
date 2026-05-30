@@ -1,4 +1,3 @@
-import { notFound } from 'next/navigation';
 import { NoteCard } from '@/components/public/NoteCard';
 import { SiteHeader } from '@/components/public/SiteHeader';
 import { getDatabase } from '@/lib/db/client';
@@ -21,7 +20,15 @@ export default async function TagDetailPage({ params }: TagDetailPageProps) {
   const tag = findTagBySlug(db, tagSlug);
 
   if (!tag) {
-    notFound();
+    return (
+      <main className="mx-auto max-w-5xl px-6 py-10">
+        <SiteHeader />
+        <section className="py-12">
+          <h1 className="text-3xl font-semibold">标签</h1>
+          <p className="mt-8 text-[var(--muted)]">没有找到这个标签。</p>
+        </section>
+      </main>
+    );
   }
 
   const notes = findPublicNotes(db, { tagSlug });
