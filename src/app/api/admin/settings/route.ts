@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/auth/require-admin';
 import { getDatabase } from '@/lib/db/client';
 import { setSiteSettings } from '@/lib/db/settings';
+import { redirectTo } from '@/lib/http/redirect';
 
 export async function POST(request: Request) {
   await requireAdmin();
@@ -21,5 +22,5 @@ export async function POST(request: Request) {
     feishuSyncSource,
   });
 
-  return NextResponse.redirect(new URL('/admin/settings?saved=1', request.url), { status: 303 });
+  return redirectTo(request, '/admin/settings?saved=1', { status: 303 });
 }

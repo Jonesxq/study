@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/auth/require-admin';
 import { getDatabase } from '@/lib/db/client';
 import { deleteLocalNote } from '@/lib/db/notes';
+import { redirectTo } from '@/lib/http/redirect';
 
 type DeleteAdminNoteRouteContext = {
   params: Promise<{
@@ -19,5 +20,5 @@ export async function POST(request: Request, context: DeleteAdminNoteRouteContex
     return new NextResponse('笔记不存在，或飞书同步笔记不能在网站后台删除。', { status: 404 });
   }
 
-  return NextResponse.redirect(new URL('/admin/notes?deleted=1', request.url), { status: 303 });
+  return redirectTo(request, '/admin/notes?deleted=1', { status: 303 });
 }

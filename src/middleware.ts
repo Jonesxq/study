@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
+import { redirectTo } from '@/lib/http/redirect';
 
 const PREFILTER_SESSION_COOKIE = 'notes_admin_session';
 
@@ -15,7 +16,7 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  return NextResponse.redirect(new URL('/admin/login', request.url));
+  return redirectTo(request, '/admin/login');
 }
 
 export const config = {

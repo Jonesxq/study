@@ -10,7 +10,8 @@
 cp .env.example .env
 ```
 
-6. 编辑 `.env`，填写管理员密码和飞书应用凭证。必须修改 `ADMIN_PASSWORD` 为强密码。
+6. 编辑 `.env`，填写管理员密码、站点地址和飞书应用凭证。必须修改 `ADMIN_PASSWORD` 为强密码。
+   `SITE_URL` 必须填写公网访问地址，例如 `https://weixianmanbu.shop`，后台表单提交后的跳转会使用它。
    `FEISHU_SYNC_SOURCE` 可填写 `space_id`，或填写 `space_id:parent_node_token` 指定父节点。
    上传图片会持久化在宿主 `./uploads`，容器内路径为 `/app/public/uploads/feishu`。
 7. 启动服务：

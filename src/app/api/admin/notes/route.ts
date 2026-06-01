@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/auth/require-admin';
 import { getDatabase } from '@/lib/db/client';
 import { createNote } from '@/lib/db/notes';
+import { redirectTo } from '@/lib/http/redirect';
 import { renderMarkdown } from '@/lib/markdown/render';
 import { summarizeMarkdown } from '@/lib/markdown/summarize';
 import { noteInputSchema } from '@/lib/validation';
@@ -28,7 +29,7 @@ export async function POST(request: Request) {
     tags: input.tags,
   });
 
-  return NextResponse.redirect(new URL(`/admin/notes/${note.id}/edit`, request.url), { status: 303 });
+  return redirectTo(request, `/admin/notes/${note.id}/edit`, { status: 303 });
 }
 
 function readNoteForm(form: FormData) {

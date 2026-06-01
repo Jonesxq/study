@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createSession, createSessionToken, SESSION_COOKIE } from '@/lib/auth/session';
 import { verifyPassword } from '@/lib/auth/password';
 import { getDatabase } from '@/lib/db/client';
+import { redirectTo } from '@/lib/http/redirect';
 
 type AdminUserRow = {
   password_hash: string;
@@ -17,12 +18,12 @@ export async function POST(request: Request) {
     | undefined;
 
   if (!user || !(await verifyPassword(password, user.password_hash))) {
-    return NextResponse.redirect(new URL('/admin/login?error=1', request.url), { status: 303 });
+    return redirectTo(request, '/admin/login?error=1', { status: 303 });
   }
 
   const token = createSessionToken();
   const expires = createSession(db, token);
-  const response = NextResponse.redirect(new URL('/admin', request.url), { status: 303 });
+  const response = redirectTo(request, '/admin', { status: 303 });
 
   response.cookies.set(SESSION_COOKIE, token, {
     httpOnly: true,

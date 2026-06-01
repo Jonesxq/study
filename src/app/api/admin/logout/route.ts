@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { deleteSession, SESSION_COOKIE } from '@/lib/auth/session';
 import { getDatabase } from '@/lib/db/client';
+import { redirectTo } from '@/lib/http/redirect';
 
 export async function POST(request: Request) {
   const token = readCookie(request, SESSION_COOKIE);
@@ -9,7 +10,7 @@ export async function POST(request: Request) {
     deleteSession(getDatabase(), token);
   }
 
-  const response = NextResponse.redirect(new URL('/admin/login', request.url), { status: 303 });
+  const response = redirectTo(request, '/admin/login', { status: 303 });
 
   response.cookies.set(SESSION_COOKIE, '', {
     httpOnly: true,

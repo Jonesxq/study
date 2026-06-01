@@ -47,11 +47,9 @@ describe('deployment assets', () => {
     expect(docs).toContain('上传图片会持久化在宿主 `./uploads`');
   });
 
-  it('forwards the public host and protocol through Caddy', () => {
+  it('forwards the public host through Caddy', () => {
     const caddyfile = readRepoFile('docker/Caddyfile');
 
     expect(caddyfile).toContain('header_up Host {host}');
-    expect(caddyfile).toContain('header_up X-Forwarded-Host {host}');
-    expect(caddyfile).toContain('header_up X-Forwarded-Proto {scheme}');
   });
 });

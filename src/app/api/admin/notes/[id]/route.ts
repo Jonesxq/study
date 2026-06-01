@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/auth/require-admin';
 import { getDatabase } from '@/lib/db/client';
 import { updateLocalNote } from '@/lib/db/notes';
+import { redirectTo } from '@/lib/http/redirect';
 import { renderMarkdown } from '@/lib/markdown/render';
 import { summarizeMarkdown } from '@/lib/markdown/summarize';
 import { noteInputSchema } from '@/lib/validation';
@@ -38,7 +39,7 @@ export async function POST(request: Request, context: UpdateAdminNoteRouteContex
     return new NextResponse('笔记不存在，或飞书同步笔记不能在网站后台编辑。', { status: 404 });
   }
 
-  return NextResponse.redirect(new URL(`/admin/notes/${note.id}/edit`, request.url), { status: 303 });
+  return redirectTo(request, `/admin/notes/${note.id}/edit`, { status: 303 });
 }
 
 function readNoteForm(form: FormData) {
